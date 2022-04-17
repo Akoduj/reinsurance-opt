@@ -1,7 +1,7 @@
 library(plotly)
-library(parallel)
+#library(parallel)
 library(foreach)
-library(doParallel)
+#library(doParallel)
 
 max_table_entries = 100
 L = 0
