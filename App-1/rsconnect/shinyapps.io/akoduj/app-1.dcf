@@ -1,0 +1,11 @@
+name: app-1
+title:
+username:
+account: akoduj
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 6107087
+bundleId: 5807039
+url: https://akoduj.shinyapps.io/app-1/
+when: 1650208903.14823
+lastSyncTime: 1650208903.14823
