@@ -1,6 +1,6 @@
 # Deploy with:
 # library(rsconnect)
-# rsconnect::deployApp('D:\02_Projects\R Projects\App-1')
+# rsconnect::deployApp('D:/02_Projects/R Projects/App-1')
 
 library(shiny)
 library(plotly)
@@ -15,9 +15,11 @@ userInput = rbind(c(10, 12, 14),
 colnames(userInput) = c("LoB1", "LoB2", "LoB3")
 rownames(userInput) = c("mean", "CV", "P")
 
-userInputPremium = matrix(c(10.25, 12.5, 15), ncol = 3)
-colnames(userInputPremium) = c("LoB1", "LoB2", "LoB3")
-rownames(userInputPremium) = c("P")
+userInputPremium_default = matrix(c(10.25, 12.5, 15), ncol = 3)
+colnames(userInputPremium_default) = c("LoB1", "LoB2", "LoB3")
+rownames(userInputPremium_default) = c("P")
+
+
 test = 0
 
 # Define UI ----
@@ -89,8 +91,6 @@ ui <- navbarPage("Risikomodellierung",
                                 tabPanel("Simulation",
                                          h5(tags$b("Loss Distribution L")),
                                          DTOutput("sim_L"),
-                                         h5(tags$b("Premium P")),
-                                         DTOutput("sim_P"),
                                          h5(tags$b("Underwriting Result U")),
                                          DTOutput("sim_U")
                                          ),
@@ -118,7 +118,7 @@ ui <- navbarPage("Risikomodellierung",
                  tabPanel("2: Without Reinsurance",
                           
                           fluidRow(
-                            column(3, offset=0,
+                            column(6, offset=0,
                                    h4("Undiversified"),
                                    h5(tags$b("Economic Profitability Z")),
                                    DTOutput("undiv_z_table"),
@@ -127,7 +127,7 @@ ui <- navbarPage("Risikomodellierung",
                                    h5(tags$b("Capital Costs")),
                                    DTOutput("undiv_capCost_table")
                             ),
-                            column(3, offset=1,
+                            column(5, offset=1,
                                    h4("Diversified"),
                                    h5(tags$b("Risk Based Capital")),
                                    DTOutput("div_riskCap_table"),
@@ -138,14 +138,6 @@ ui <- navbarPage("Risikomodellierung",
                                    h5(tags$b("Capital Costs")),
                                    DTOutput("div_capCost_table")
                             ),
-                            column(3, offset=1,
-                                   h4("Risk Appetite and Limits"),
-                                   h5("Risk Appetite (Solvency Ratio)"),
-                                   
-                                   h5("Risk Limit and Buffer"),
-                                   
-                                   h5("Risk Limits (Underwriting Result)")
-                            )
                           )
                           ),
                  tabPanel("3: Reinsurance",
@@ -162,7 +154,7 @@ ui <- navbarPage("Risikomodellierung",
                                           c("Expected Value Principle",
                                             "Standard Deviation Principle",
                                             "Cost of Capital Principle"),
-                                          selected = 1),
+                                          selected = "Standard Deviation Principle"),
                               sliderInput("reins_p_evp_lambda", "Expected Value surcharge (%)",
                                           min = 0, max = 100, value = 0, step = 1),
                               sliderInput("reins_p_sdp_alpha", "Standard deviation multiplier",
@@ -273,7 +265,7 @@ ui <- navbarPage("Risikomodellierung",
                                           c("Expected Value Principle",
                                             "Standard Deviation Principle",
                                             "Cost of Capital Principle"),
-                                          selected = 1),
+                                          selected = "Standard Deviation Principle"),
                               sliderInput("opt_p_evp_lambda", "Expected Value surcharge (%)",
                                           min = 0, max = 100, value = 0, step = 1),
                               sliderInput("opt_p_sdp_alpha", "Standard deviation multiplier",
@@ -289,16 +281,16 @@ ui <- navbarPage("Risikomodellierung",
                               fluidRow(
                                 column(6,
                                   h4(tags$b("Insurer")),
-                                  numericInput("opt_equity_ins", "Equity", value = 3),
-                                  sliderInput("opt_solvency_terget_ins", "Solvency Target",
+                                  numericInput("opt_equity_ins", "Equity", value = 5),
+                                  sliderInput("opt_solvency_target_ins", "Solvency Target (%)",
                                               min = 50, max = 150, value = 100, step = 1),
                                   h5(tags$b("Insurance Premium")),
                                   DTOutput('opt_premium_ins')
                                 ),
                                 column(6,
                                   h4(tags$b("Reinsurer")),
-                                  numericInput("opt_equity_reins", "Equity", value = 3),
-                                  sliderInput("opt_solvency_target_reins", "Solvency Target",
+                                  numericInput("opt_equity_reins", "Equity", value = 5),
+                                  sliderInput("opt_solvency_target_reins", "Solvency Target (%)",
                                               min = 50, max = 150, value = 100, step = 1),
                                   
                                 ),
@@ -359,6 +351,10 @@ server <- function(input, output) {
   })
   
   
+  
+  userInputPrem = reactiveValues()
+  
+  
   ################
   # Simulation
   
@@ -371,6 +367,13 @@ server <- function(input, output) {
                            input = userInput,
                            CoC_ins = input$CoC_ins,
                            CoC_reins = input$CoC_reins)
+    
+    # Update Premium values on Optimization tab
+    userInputPrem$premium = matrix(userInput[3,], ncol = 3)
+    colnames(userInputPrem$premium) = c("LoB1", "LoB2", "LoB3")
+    rownames(userInputPrem$premium) = c("P")
+    
+    
     # Monte Carlo
     vals$uniformNums = result["corrNum"]
     vals$lossNums = result["loss"]
@@ -396,6 +399,12 @@ server <- function(input, output) {
   
   observeEvent(input$opt_button, {
     # User input values
+    if (is.null(userInputPrem$premium)) {
+      premium_ins = userInputPremium_default
+    } else {
+      premium_ins = userInputPrem$premium
+    }
+    
     opt_risk_measure = input$opt_risk_measure
     opt_alpha = input$opt_risk_measure_alpha / 100
     
@@ -418,7 +427,6 @@ server <- function(input, output) {
                        "Insurer Return on Risk Based Capital",
                        "Reinsurer Return on Risk Based Capital"))
     opt_target = opt_target - 1
-    cat("opt_target = ", opt_target)
     
     if (opt_target <= 2) {
       opt_dimension = 2
@@ -462,7 +470,7 @@ server <- function(input, output) {
     # .... FE : Function evaluations for differential evolution (DE)
     # .... popSize : Population size for DE
     # .... s : s scalar for DE
-    opt = runOptimization(prem_ins = userInputPremium,
+    opt = runOptimization(prem_ins = premium_ins,
                           coc_ins = coc_ins,
                           coc_reins = coc_reins,
                           prem_fn_type = p_type,
@@ -795,7 +803,11 @@ server <- function(input, output) {
   ################
   # Optimization
   
-  output$opt_premium_ins = renderDT(userInputPremium,
+  output$opt_premium_ins = renderDT(if (is.null(userInputPrem$premium)) {
+    userInputPremium_default
+  } else {
+    userInputPrem$premium
+  },
                                    editable = 'cell',
                                    rownames = TRUE,
                                    options = list(paging = F, searching = F)

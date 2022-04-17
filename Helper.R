@@ -160,9 +160,8 @@ DEmax = function(f, D, R, args = NULL, FE = 1000, popSize = 20, s = 0.7, pXO = 0
                  fOutputDimensions = 1, optIndex = 0) {
   # browser()
   # initialize
-  cat("opt index ... ", optIndex)
+  cat("opt index ... ", optIndex, "\n")
   xC = matrix(runif(popSize * D, R[1], R[2]), nrow = popSize, ncol = D)
-  
   xC[1,] = c(10, 12.5, 14.5, 1.5, 2, 2.5)
   
   fC_sep = matrix(0, nrow = popSize, ncol = fOutputDimensions)
@@ -231,18 +230,22 @@ DEmax = function(f, D, R, args = NULL, FE = 1000, popSize = 20, s = 0.7, pXO = 0
       fN = fN_sep[, optIndex]
     }
     
-    cat("x_11 ... ", xC[1,1], " ... ", xN[1,1], "\n")
-    cat("x_12 ... ", xC[1,2], " ... ", xN[1,2], "\n")
-    cat("x_13 ... ", xC[1,3], " ... ", xN[1,3], "\n")
-    cat("x_14 ... ", xC[1,4], " ... ", xN[1,4], "\n")
-    cat("x_15 ... ", xC[1,5], " ... ", xN[1,5], "\n")
-    cat("x_16 ... ", xC[1,6], " ... ", xN[1,6], "\n")
-    cat("f(x_1) C ... ", fC_sep[1,], "\n")
-    cat("prem C ... ", fC_prem[1,], "\n")
-    cat("f(x_1) N ... ", fN_sep[1,], "\n")
-    cat("prem N ... ", fN_prem[1,], "\n", "\n")
-    cat("fC ... ", fC[1], "\n")
-    cat("fN ... ", fN[1], "\n")
+    # cat("x_11 ... ", xC[1,1], " ... ", xN[1,1], "\n")
+    # cat("x_12 ... ", xC[1,2], " ... ", xN[1,2], "\n")
+    # cat("x_13 ... ", xC[1,3], " ... ", xN[1,3], "\n")
+    # cat("x_14 ... ", xC[1,4], " ... ", xN[1,4], "\n")
+    # cat("x_15 ... ", xC[1,5], " ... ", xN[1,5], "\n")
+    # cat("x_16 ... ", xC[1,6], " ... ", xN[1,6], "\n")
+    # cat("f(x_1) C ... ", fC_sep[1,], "\n")
+    # cat("prem C ... ", fC_prem[1,], "\n")
+    # cat("f(x_1) N ... ", fN_sep[1,], "\n")
+    # cat("prem N ... ", fN_prem[1,], "\n", "\n")
+    # cat("fC ... ", fC[1], "\n")
+    # cat("fN ... ", fN[1], "\n")
+    
+    for (i in 1:popSize) {
+      # cat("fC[", i, "]: ", round(fC[i], 3), " ... fN[", i, "]: ", round(fN[i], 3), "\n")
+    }
     
     replace = fN > fC
     
@@ -258,8 +261,8 @@ DEmax = function(f, D, R, args = NULL, FE = 1000, popSize = 20, s = 0.7, pXO = 0
       fOpt_sep = fN_sep[iOpt,]
     }
     
-    cat("Current opt (", gen, "):", fOpt, " (", fOpt_sep, ") at ", xOpt, "\n")
-    cat("prem opt ... ", fN_prem[iOpt,], "\n", "\n")
+    # cat("Current opt (", gen, "):", fOpt, " (", fOpt_sep, ") at ", xOpt, "\n")
+    # cat("prem opt ... ", fN_prem[iOpt,], "\n", "\n")
   }
   
   end_time = Sys.time()
@@ -284,6 +287,8 @@ DEmax = function(f, D, R, args = NULL, FE = 1000, popSize = 20, s = 0.7, pXO = 0
 # .... returnOption : "total_z", "separate_z", "total_RoRBC", "separate_RoRBC", "all"
 # .... punish : punish function
 # .... nonNegativeOutput : add punishment term if one of the outputs is negative
+# .... RBC_target_ins : Target maximum risk based capital of Insurer
+# .... RBC_target_reins : Target maximum risk based capital of Reinsurer
 agg_stop_loss = function(input, L, premium_ins, coc_ins, coc_reins,
                          premium_fn_type=NULL,
                          premium_fn_args=NULL,
@@ -291,8 +296,11 @@ agg_stop_loss = function(input, L, premium_ins, coc_ins, coc_reins,
                          reins_risk_measure = "VaR",
                          returnOption = "all",
                          punish = NULL,
-                         nonNegativeOutput = TRUE) {
+                         nonNegativeOutput = TRUE,
+                         RBC_target_ins = 0,
+                         RBC_target_reins = 0) {
   # Input
+  # browser()
   n_LoB = dim(L)[2]
   deductible = input[1:n_LoB]
   limit = input[(n_LoB+1):(2*n_LoB)]
@@ -390,24 +398,31 @@ agg_stop_loss = function(input, L, premium_ins, coc_ins, coc_reins,
   }
   
   # Add punishment if one of output dimension (z) is negative
+  # .... if both are negative -> do nothing
+  # .... if exactly one is negative -> add it to the other one
   if (nonNegativeOutput) {
     if (returnOption == "all") {
       negativeOutput = return_value[1:2] < 0
-      return_value[1:2] = return_value[1:2] - sum(negativeOutput)
-    } else {
-      negativeOutput = return_value < 0
-      return_value = return_value - sum(negativeOutput)
+      if (sum(negativeOutput) == 1) {
+        return_value[1:2][!negativeOutput] = return_value[1:2][!negativeOutput] + sum(return_value[1:2][negativeOutput])
+      }
     }
   }
   
   # Add punishment term if included
   if (!is.null(punish)) {
     if (returnOption == "all") {
-      return_value[1:2] = return_value[1:2] - punish(input)
+      val = return_value[1:2]
+      pun = punish(input, RBC_ins, RBC_reins, RBC_target_ins, RBC_target_reins)
+      return_value[1:2] = return_value[1:2] - pun
+      #cat(round(input, 3), round(RBC_ins, 3), round(RBC_reins, 3), "\n")
+      #cat("Value ... ", round(val, 3), " ... Punish ... ", round(pun, 3), "\n")
     } else {
-      return_value = return_value - punish(input)
+      return_value = return_value - punish(input, RBC_ins, RBC_reins, RBC_target_ins, RBC_target_reins)
     }
   }
+  
+  
   
   return(return_value)
 }
@@ -415,7 +430,8 @@ agg_stop_loss = function(input, L, premium_ins, coc_ins, coc_reins,
 
 # aggregate stop loss punishment function, returns positive number in accordance to the
 # severity of violation of feasibility of reinsurance contracts. Returns zero if feasible.
-agg_stop_loss_punish = function(input, scale_violation=1, cutoff_violation=1) {
+agg_stop_loss_punish = function(input, RBC_ins, RBC_reins, RBC_target_ins = 0, RBC_target_reins = 0,
+                                scale_violation=1, cutoff_violation=0.1) {
   # Input
   n_LoB = 3
   violation = 0
@@ -440,6 +456,14 @@ agg_stop_loss_punish = function(input, scale_violation=1, cutoff_violation=1) {
   }
   if (sum(limit[limit < 0]) < 0) {
     violation = violation + mean((-limit)[limit < 0])
+  }
+  
+  # Add violation if RBC target has been surpassed
+  if (RBC_target_ins != 0 & RBC_ins > RBC_target_ins) {
+    violation = violation + (RBC_ins - RBC_target_ins)
+  }
+  if (RBC_target_reins != 0 & RBC_reins > RBC_target_reins) {
+    violation = violation + (RBC_reins - RBC_target_reins)
   }
   
   punishment = punishment + violation * scale_violation + (violation > 0) * cutoff_violation
@@ -690,7 +714,7 @@ runSimulation = function(n, corr, input, CoC_ins=0.1, CoC_reins=0.06, risk_thres
   s = (log(1 + (stdDev^2)/(mean^2)))^(1/2)
   
   # generate Scenarios
-  L = get_L()
+  reCalc_L()
   
   
   
@@ -928,15 +952,24 @@ runOptimization = function(prem_ins, coc_ins, coc_reins, prem_fn_type, prem_fn_a
                            FE = 1000, popSize = 20, s = 0.7) {
   D = 6
   R = c(0, 15)
+  RBC_target_ins = eq_ins / sol_tar_ins
+  RBC_target_reins = eq_reins / sol_tar_reins
   args = list(L, prem_ins, coc_ins, coc_reins,
               prem_fn_type, prem_fn_args, alpha,
-              risk_measure_reins, "all", agg_stop_loss_punish, TRUE)
+              risk_measure_reins, "all", agg_stop_loss_punish, TRUE,
+              RBC_target_ins, RBC_target_reins)
+  args_naked = list(L, prem_ins, coc_ins, coc_reins,
+              prem_fn_type, prem_fn_args, alpha,
+              risk_measure_reins, "all", NULL, FALSE)
   
   cat("begin ... \n")
   opt = DEmax(agg_stop_loss, D, R, args, FE, popSize, s, parallel = FALSE,
                fOutputDimensions = f_dim, optIndex = f_ind)
   xOpt = opt$xOpt
-  fOptAll = opt$fOptAll
+  fOptAll_processed = opt$fOptAll
+  fOptAll = do.call(agg_stop_loss, c(list(xOpt), args_naked))
+  cat("fOptAll_processed ... ", fOptAll_processed, "\n")
+  cat("fOptAll ... ", fOptAll, "\n")
   
   return(list("xOpt" = xOpt, "fOptAll" = fOptAll))
 }
