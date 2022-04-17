@@ -1,7 +1,7 @@
 library(plotly)
-#library(parallel)
+# library(parallel)
 library(foreach)
-#library(doParallel)
+# library(doParallel)
 
 max_table_entries = 100
 L = 0
@@ -17,8 +17,8 @@ corr_global = rbind(c(1, 0.75, -0.25),
 n_global = 10000
 
 
-numCores = detectCores() - 1
-registerDoParallel(numCores)  # use multicore, set to the number of our cores
+# numCores = detectCores() - 1
+# registerDoParallel(numCores)  # use multicore, set to the number of our cores
 
 #testCorr = rbind(c(1, 0.75, -0.25),
 #                 c(0.75, 1, 0.25),
