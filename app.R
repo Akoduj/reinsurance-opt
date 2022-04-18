@@ -15,12 +15,15 @@ userInput = rbind(c(10, 12, 14),
 colnames(userInput) = c("LoB1", "LoB2", "LoB3")
 rownames(userInput) = c("mean", "CV", "P")
 
-userInputPremium_default = matrix(c(10.25, 12.5, 15), ncol = 3)
-colnames(userInputPremium_default) = c("LoB1", "LoB2", "LoB3")
-rownames(userInputPremium_default) = c("P")
+userInputPremium = matrix(c(10.25, 12.5, 15), ncol = 3)
+colnames(userInputPremium) = c("LoB1", "LoB2", "LoB3")
+rownames(userInputPremium) = c("P")
+
+userInputDEPara = matrix(c(2000, 20, 0.7), ncol = 3)
+colnames(userInputDEPara) = c("FE", "popSize", "s")
+rownames(userInputDEPara) = c("value")
 
 
-test = 0
 
 # Define UI ----
 ui <- navbarPage("Risikomodellierung",
@@ -254,6 +257,7 @@ ui <- navbarPage("Risikomodellierung",
                           sidebarLayout(
                             sidebarPanel(
                               actionButton("opt_button", "Optimize"),
+                              h6("(This can take a few minutes)"),
                               br(),
                               selectInput("opt_risk_measure", "Reinsurance Risk Measure",
                                           c("Value at Risk",
@@ -292,7 +296,8 @@ ui <- navbarPage("Risikomodellierung",
                                   numericInput("opt_equity_reins", "Equity", value = 5),
                                   sliderInput("opt_solvency_target_reins", "Solvency Target (%)",
                                               min = 50, max = 150, value = 100, step = 1),
-                                  
+                                  h5(tags$b("DE Parameter")),
+                                  DTOutput('opt_DE_parameter')
                                 ),
                               ),
                               
@@ -320,9 +325,11 @@ ui <- navbarPage("Risikomodellierung",
                  tabPanel("5: Analysis",
                           fluidRow(
                             column(5, style='padding:0px;',
+                                   h4(tags$b("Insurer Optimization")),
                                    plotlyOutput("anal_plot1"),
                             ),
                             column(7, style='padding:0px;',
+                                   h4(tags$b("Reinsurer Optimization")),
                                    plotlyOutput("anal_plot2"),
                             )
                           ),
@@ -399,11 +406,10 @@ server <- function(input, output) {
   
   observeEvent(input$opt_button, {
     # User input values
-    if (is.null(userInputPrem$premium)) {
-      premium_ins = userInputPremium_default
-    } else {
-      premium_ins = userInputPrem$premium
-    }
+
+    premium_ins = userInputPremium
+
+    DE_para = userInputDEPara
     
     opt_risk_measure = input$opt_risk_measure
     opt_alpha = input$opt_risk_measure_alpha / 100
@@ -482,7 +488,10 @@ server <- function(input, output) {
                           eq_ins = equity_ins,
                           eq_reins = equity_reins,
                           sol_tar_ins = solvency_target_ins,
-                          sol_tar_reins = solvency_target_reins)
+                          sol_tar_reins = solvency_target_reins,
+                          FE = DE_para[1],
+                          popSize = DE_para[2],
+                          s = DE_para[3])
     
     xOpt = opt$xOpt
     fOptAll = opt$fOptAll
@@ -663,6 +672,15 @@ server <- function(input, output) {
   # edit input values
   observeEvent(input$userInputTable_cell_edit, {
     userInput <<- editData(userInput, input$userInputTable_cell_edit, 'userInputTable')
+    
+    userInputPremium <<- matrix(userInput[3,], ncol = 3)
+    colnames(userInputPremium) <<- c("LoB1", "LoB2", "LoB3")
+    rownames(userInputPremium) <<- c("P")
+    output$opt_premium_ins = renderDT(userInputPremium,
+                                        editable = 'cell',
+                                        rownames = TRUE,
+                                        options = list(paging = F, searching = F))
+    
     vals$sim_L <<- get_sim_L(userInput[1:2,])
     output$sim_L = renderDT(round(vals$sim_L, 2),
                             editable = FALSE,
@@ -803,14 +821,16 @@ server <- function(input, output) {
   ################
   # Optimization
   
-  output$opt_premium_ins = renderDT(if (is.null(userInputPrem$premium)) {
-    userInputPremium_default
-  } else {
-    userInputPrem$premium
-  },
+  output$opt_premium_ins = renderDT(userInputPremium,
                                    editable = 'cell',
                                    rownames = TRUE,
                                    options = list(paging = F, searching = F)
+  )
+  
+  output$opt_DE_parameter = renderDT(userInputDEPara,
+  editable = 'cell',
+  rownames = TRUE,
+  options = list(paging = F, searching = F)
   )
   
   output$opt_result_inp = renderDT(signif(opt_vals$input, 5),
@@ -824,6 +844,11 @@ server <- function(input, output) {
                                     rownames = TRUE,
                                     options = list(paging = F, searching = F)
   )
+  
+  # edit input values
+  observeEvent(input$opt_DE_parameter_cell_edit, {
+    userInputDEPara <<- editData(userInputDEPara, input$opt_DE_parameter_cell_edit, 'opt_DE_parameter')
+  })
   
   ###############
   # Analysis

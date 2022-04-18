@@ -135,6 +135,11 @@ calculate_premium = function(L, type="EVP", args=NULL) {
       #browser()
       rho = sorted[floor(alpha*n),]
     }
+    # set rho to 0 if negative (premium should be at least the expected value)
+    neg = rho < 0
+    if (sum(neg) > 0) {
+      rho[neg] = 0
+    }
     premium = L_mean + r_CoC * rho
   }
   
@@ -950,6 +955,9 @@ runOptimization = function(prem_ins, coc_ins, coc_reins, prem_fn_type, prem_fn_a
                            risk_measure_reins, f_dim, f_ind,
                            eq_ins, eq_reins, sol_tar_ins, sol_tar_reins,
                            FE = 1000, popSize = 20, s = 0.7) {
+  
+  cat("Vals ... ", FE, popSize, s)
+  
   D = 6
   R = c(0, 15)
   RBC_target_ins = eq_ins / sol_tar_ins
